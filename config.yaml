@@ -1,0 +1,41 @@
+experiment:
+  seed: 42
+  start_date: "2015-01-01"
+  end_date: "2024-12-31"
+  tickers:
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - NVDA
+    - META
+    - TSLA
+    - JPM
+    - V
+    - JNJ
+    - WMT
+    - PG
+    - UNH
+    - HD
+    - MA
+    - DIS
+    - ADBE
+    - CRM
+    - NFLX
+    - INTC
+
+wfv:
+  train_window: 752
+  val_window: 63
+  test_window: 63
+
+environment:
+  window_size: 30
+  transaction_cost_bps: 10
+  reward_type: "sortino"
+
+rl:
+  total_timesteps: 20000
+  net_arch: [128, 128]
+  lstm_hidden_size: 128
+  n_lstm_layers: 1

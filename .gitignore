@@ -1,0 +1,20 @@
+# Python & virtual env
+.venv/
+__pycache__/
+*.py[cod]
+# Jupyter
+.ipynb_checkpoints/
+# Data & results
+data/
+results/
+# Logs & caches
+*.log
+*.sqlite3
+# OS files
+.DS_Store
+# Environment files
+.env
+.env.*
+# Build artifacts
+build/
+*.egg-info/
