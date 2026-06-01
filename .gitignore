@@ -6,8 +6,10 @@ __pycache__/
 .ipynb_checkpoints/
 # Data & results
 data/
-results/
+
 results/models/
+results/logs/
+
 # Logs & caches
 *.log
 *.sqlite3
