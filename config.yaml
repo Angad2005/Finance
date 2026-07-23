@@ -25,7 +25,7 @@ experiment:
     - INTC
 
 wfv:
-  train_window: 752
+  train_window: 252
   val_window: 63
   test_window: 63
 
