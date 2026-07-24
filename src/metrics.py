@@ -2,9 +2,11 @@ import numpy as np
 import pandas as pd
 
 def compute_cumulative_return(returns):
+    returns = np.asarray(returns, dtype=float)
     return np.prod(1 + returns) - 1.0
 
 def compute_max_drawdown(returns):
+    returns = np.asarray(returns, dtype=float)
     cumulative = np.cumprod(1 + returns)
     peak = np.maximum.accumulate(cumulative)
     drawdown = (peak - cumulative) / peak
