@@ -28,7 +28,7 @@ def load_data(tickers, start_date, end_date, output_dir="data"):
         'JPM': 'DGS10',              # 10-Year Treasury Constant Maturity Rate
         'V': 'DGS2',                 # 2-Year Treasury Constant Maturity Rate
         'JNJ': 'DEXPUS',             # US / Export Price Index
-        'WMT': 'DCOILWTICO',         # Energy Commodities Baseline
+        'WMT': 'PPIACO',             # Producer Price Index: All Commodities
         'PG': 'WILL5000IND',         # Wilshire 5000 Total Market Index
         'UNH': 'DGS5',               # 5-Year Treasury Constant Maturity Rate
         'HD': 'DGS30',               # 30-Year Treasury Constant Maturity Rate

@@ -38,19 +38,74 @@ def run_mvo(train_returns, test_returns, transaction_cost_bps=10):
     # Correct price construction: cumulative log‑returns → price series starting at 1.0
     train_prices = np.exp(train_returns.cumsum())
     train_prices.iloc[0] = 1.0
-    
+
+    n_assets = train_returns.shape[1]
+    weights = np.ones(n_assets) / n_assets  # default: equal weight fallback
+
+    # Drop near-duplicate or near-constant columns to avoid singular covariance matrix
+    def _clean_prices(prices):
+        """Remove columns with near-zero variance or near-perfect correlation."""
+        # Drop constant / near-constant columns (std < 1e-8)
+        std = prices.std()
+        prices = prices.loc[:, std > 1e-8]
+        if prices.shape[1] < 2:
+            return prices
+        # Drop columns that are near-perfect duplicates (corr > 0.9999)
+        corr = prices.corr().abs()
+        upper = corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool))
+        to_drop = [col for col in upper.columns if any(upper[col] > 0.9999)]
+        return prices.drop(columns=to_drop)
+
+    clean_prices = _clean_prices(train_prices)
+    active_cols = clean_prices.columns.tolist()
+
     try:
-        # Ledoit-Wolf shrinkage
-        S = risk_models.CovarianceShrinkage(train_prices).ledoit_wolf()
-        mu = expected_returns.mean_historical_return(train_prices)
-        
-        ef = EfficientFrontier(mu, S, weight_bounds=(0, 0.2)) # Max weight 20%
-        ef.max_sharpe()
-        weights_dict = ef.clean_weights()
-        weights = np.array([weights_dict.get(c, 0) for c in train_returns.columns])
+        S = risk_models.CovarianceShrinkage(clean_prices).ledoit_wolf()
+        mu = expected_returns.mean_historical_return(clean_prices)
+
+        # Tier 1: max_sharpe with tight per-asset cap
+        upper_bound = max(0.2, 1.0 / len(active_cols))  # at least 1/n to stay feasible
+        try:
+            ef = EfficientFrontier(mu, S, weight_bounds=(0, upper_bound))
+            ef.max_sharpe()
+            weights_dict = ef.clean_weights()
+            logger.info("MVO: max_sharpe succeeded (tight bounds).")
+        except Exception as e1:
+            logger.warning(f"MVO max_sharpe (tight bounds) failed ({e1}), relaxing bounds.")
+            # Tier 2: max_sharpe with relaxed bounds
+            try:
+                ef = EfficientFrontier(mu, S, weight_bounds=(0, 1))
+                ef.max_sharpe()
+                weights_dict = ef.clean_weights()
+                logger.info("MVO: max_sharpe succeeded (relaxed bounds).")
+            except Exception as e2:
+                logger.warning(f"MVO max_sharpe (relaxed bounds) failed ({e2}), trying min_volatility.")
+                # Tier 3: min_volatility (always feasible for PSD matrices)
+                try:
+                    ef = EfficientFrontier(mu, S, weight_bounds=(0, 1))
+                    ef.min_volatility()
+                    weights_dict = ef.clean_weights()
+                    logger.info("MVO: min_volatility succeeded.")
+                except Exception as e3:
+                    logger.warning(f"MVO min_volatility failed ({e3}), using equal weights.")
+                    weights_dict = None
+
+        if weights_dict is not None:
+            # Map optimised weights back to the full asset universe (zero for dropped cols)
+            partial_w = np.array([weights_dict.get(c, 0.0) for c in active_cols])
+            full_w = np.zeros(n_assets)
+            for i, col in enumerate(train_returns.columns):
+                if col in active_cols:
+                    full_w[i] = partial_w[active_cols.index(col)]
+            # Normalise to sum to 1
+            total = full_w.sum()
+            if total > 1e-8:
+                weights = full_w / total
+            else:
+                weights = np.ones(n_assets) / n_assets
+
     except Exception as e:
-        logger.warning(f"MVO failed ({e}), falling back to UBH weights.")
-        n_assets = train_returns.shape[1]
+        logger.warning(f"MVO failed entirely ({e}), falling back to UBH weights.")
         weights = np.ones(n_assets) / n_assets
         
     # Evaluate on test

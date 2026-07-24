@@ -27,7 +27,7 @@ experiment:
 wfv:
   train_window: 252
   val_window: 63
-  test_window: 63
+  test_window: 126
 
 environment:
   window_size: 30
