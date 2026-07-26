@@ -70,12 +70,10 @@ def run_wfv_backtest(log_returns, rf_rate, splits, config):
         # 1. UBH
         logger.info("Running UBH baseline...")
         ubh_returns = run_ubh(test_ret, config["environment"]["transaction_cost_bps"])
-        results["UBH"].extend(ubh_returns)
         
         # 2. MVO
         logger.info("Running MVO baseline...")
         mvo_returns, mvo_weights = run_mvo(train_ret, test_ret, config["environment"]["transaction_cost_bps"])
-        results["MVO"].extend(mvo_returns)
         np.save(models_dir / f"mvo_weights_fold_{i}.npy", mvo_weights)
         
         # 3. MLP-RL
@@ -89,8 +87,6 @@ def run_wfv_backtest(log_returns, rf_rate, splits, config):
         mlp_model.save(models_dir / f"mlp_fold_{i}.zip")
         
         mlp_returns, mlp_weights = evaluate_rl(mlp_model, env_kwargs_test)
-        results["MLP-RL"].extend(mlp_returns)
-        weights_history["MLP-RL"].extend(mlp_weights)
         
         del mlp_model
         torch.cuda.empty_cache()
@@ -109,10 +105,36 @@ def run_wfv_backtest(log_returns, rf_rate, splits, config):
         lstm_model.save(models_dir / f"lstm_fold_{i}.zip")
         
         lstm_returns, lstm_weights = evaluate_lstm_rl(lstm_model, env_kwargs_test)
-        results["LSTM-RL"].extend(lstm_returns)
-        weights_history["LSTM-RL"].extend(lstm_weights)
         
         del lstm_model
         torch.cuda.empty_cache()
+        
+        # ------------------------------------------------------------------ #
+        # Align all fold return series to the same length before accumulating.
+        # UBH/MVO iterate over all test_ret rows (T steps), while RL agents
+        # use a sliding observation window and therefore produce only
+        # (T - window_size) steps.  Trimming to the minimum ensures the
+        # global results lists stay equal-length and pd.DataFrame(results)
+        # never raises "All arrays must be of the same length".
+        # ------------------------------------------------------------------ #
+        fold_lengths = {
+            "UBH": len(ubh_returns),
+            "MVO": len(mvo_returns),
+            "MLP-RL": len(mlp_returns),
+            "LSTM-RL": len(lstm_returns),
+        }
+        min_len = min(fold_lengths.values())
+        if len(set(fold_lengths.values())) > 1:
+            logger.warning(
+                f"Fold {i+1}: strategy return lengths differ {fold_lengths}. "
+                f"Trimming all to {min_len} steps (the minimum)."
+            )
+        
+        results["UBH"].extend(ubh_returns[-min_len:])
+        results["MVO"].extend(mvo_returns[-min_len:])
+        results["MLP-RL"].extend(mlp_returns[:min_len])
+        weights_history["MLP-RL"].extend(mlp_weights[:min_len])
+        results["LSTM-RL"].extend(lstm_returns[:min_len])
+        weights_history["LSTM-RL"].extend(lstm_weights[:min_len])
         
     return results, weights_history

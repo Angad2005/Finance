@@ -159,6 +159,16 @@ def main():
         metrics_dir.mkdir(parents=True, exist_ok=True)
         metrics_df.to_csv(metrics_dir / "performance_summary.csv", index=False)
         
+        # --- Defensive alignment: guarantee all series are the same length --- #
+        result_lengths = {k: len(v) for k, v in results.items()}
+        if len(set(result_lengths.values())) > 1:
+            logger.warning(
+                f"Result series length mismatch detected before DataFrame construction: "
+                f"{result_lengths}. Auto-truncating all to the minimum length."
+            )
+            min_result_len = min(result_lengths.values())
+            results = {k: v[:min_result_len] for k, v in results.items()}
+        # --------------------------------------------------------------------- #
         results_df = pd.DataFrame(results)
         for col in results_df.columns:
             results_df[col].to_csv(metrics_dir / f"returns_series_{col}.csv", index=False)
